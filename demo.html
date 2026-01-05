@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OUTRUN Audio Engine Demo</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    :root {
+      --neon-cyan: #00fff2;
+      --neon-magenta: #ff00ff;
+      --neon-orange: #ff6b35;
+      --neon-yellow: #ffe66d;
+      --sunset-top: #1a0a2e;
+      --sunset-mid: #3d1155;
+      --sunset-low: #d4145a;
+      --sunset-horizon: #ff9a3c;
+      --grid-purple: #8b5cf6;
+    }
+    
+    body {
+      min-height: 100vh;
+      background: linear-gradient(180deg, 
+        var(--sunset-top) 0%,
+        var(--sunset-mid) 30%,
+        var(--sunset-low) 60%,
+        var(--sunset-horizon) 100%
+      );
+      font-family: 'Rajdhani', sans-serif;
+      color: white;
+      overflow-x: hidden;
+      position: relative;
+    }
+    
+    /* Scanline effect */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.1) 0px,
+        rgba(0, 0, 0, 0.1) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      pointer-events: none;
+      z-index: 1000;
+    }
+    
+    /* Retro grid floor */
+    .grid-floor {
+      position: fixed;
+      bottom: 0;
+      left: -50%;
+      right: -50%;
+      height: 40%;
+      background: 
+        linear-gradient(90deg, var(--grid-purple) 1px, transparent 1px),
+        linear-gradient(0deg, var(--grid-purple) 1px, transparent 1px);
+      background-size: 60px 30px;
+      transform: perspective(500px) rotateX(60deg);
+      transform-origin: center top;
+      opacity: 0.6;
+      animation: gridScroll 2s linear infinite;
+    }
+    
+    @keyframes gridScroll {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 30px; }
+    }
+    
+    /* Sun */
+    .sun {
+      position: fixed;
+      top: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 200px;
+      background: linear-gradient(180deg, 
+        var(--neon-yellow) 0%,
+        var(--neon-orange) 50%,
+        var(--sunset-low) 100%
+      );
+      border-radius: 50%;
+      box-shadow: 
+        0 0 60px var(--neon-orange),
+        0 0 100px var(--sunset-low);
+      /* Horizontal lines through sun */
+      -webkit-mask-image: repeating-linear-gradient(
+        0deg,
+        black 0px,
+        black 8px,
+        transparent 8px,
+        transparent 12px
+      );
+      mask-image: repeating-linear-gradient(
+        0deg,
+        black 0px,
+        black 8px,
+        transparent 8px,
+        transparent 12px
+      );
+    }
+    
+    .container {
+      position: relative;
+      z-index: 10;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    
+    /* Title */
+    .title {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    
+    .title h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 4rem;
+      font-weight: 900;
+      background: linear-gradient(180deg, var(--neon-cyan) 0%, var(--neon-magenta) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: none;
+      filter: drop-shadow(0 0 20px var(--neon-cyan)) drop-shadow(0 0 40px var(--neon-magenta));
+      letter-spacing: 0.1em;
+      animation: titleGlow 2s ease-in-out infinite alternate;
+    }
+    
+    @keyframes titleGlow {
+      0% { filter: drop-shadow(0 0 20px var(--neon-cyan)) drop-shadow(0 0 40px var(--neon-magenta)); }
+      100% { filter: drop-shadow(0 0 30px var(--neon-cyan)) drop-shadow(0 0 60px var(--neon-magenta)); }
+    }
+    
+    .title p {
+      font-size: 1.2rem;
+      color: var(--neon-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.3em;
+      margin-top: 10px;
+      text-shadow: 0 0 10px var(--neon-cyan);
+    }
+    
+    /* Panels */
+    .panel {
+      background: rgba(0, 0, 0, 0.6);
+      border: 2px solid var(--neon-cyan);
+      border-radius: 8px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 
+        0 0 20px rgba(0, 255, 242, 0.3),
+        inset 0 0 30px rgba(0, 255, 242, 0.05);
+    }
+    
+    .panel-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.4rem;
+      color: var(--neon-magenta);
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      margin-bottom: 25px;
+      text-shadow: 0 0 10px var(--neon-magenta);
+      border-bottom: 1px solid var(--neon-magenta);
+      padding-bottom: 10px;
+    }
+    
+    /* Start button */
+    .start-btn {
+      display: block;
+      width: 100%;
+      padding: 20px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--sunset-top);
+      background: linear-gradient(180deg, var(--neon-cyan) 0%, var(--neon-magenta) 100%);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 
+        0 0 20px var(--neon-cyan),
+        0 4px 0 var(--neon-magenta);
+    }
+    
+    .start-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 
+        0 0 40px var(--neon-cyan),
+        0 6px 0 var(--neon-magenta);
+    }
+    
+    .start-btn:active {
+      transform: translateY(2px);
+      box-shadow: 
+        0 0 20px var(--neon-cyan),
+        0 2px 0 var(--neon-magenta);
+    }
+    
+    .start-btn.active {
+      background: linear-gradient(180deg, var(--neon-magenta) 0%, var(--neon-orange) 100%);
+    }
+    
+    /* Throttle section */
+    .throttle-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      align-items: start;
+    }
+    
+    /* Slider container */
+    .slider-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .slider-label {
+      font-size: 1rem;
+      color: var(--neon-yellow);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 15px;
+    }
+    
+    /* Vertical slider */
+    .throttle-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 200px;
+      height: 20px;
+      background: linear-gradient(90deg, 
+        var(--neon-cyan) 0%,
+        var(--neon-yellow) 50%,
+        var(--neon-orange) 100%
+      );
+      border-radius: 10px;
+      outline: none;
+      box-shadow: 
+        0 0 10px var(--neon-cyan),
+        inset 0 2px 5px rgba(0,0,0,0.5);
+      transform: rotate(-90deg);
+      transform-origin: center center;
+      margin: 80px 0;
+    }
+    
+    .throttle-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 30px;
+      height: 40px;
+      background: linear-gradient(180deg, #fff 0%, #ccc 100%);
+      border-radius: 5px;
+      cursor: pointer;
+      box-shadow: 
+        0 0 10px var(--neon-magenta),
+        0 4px 8px rgba(0,0,0,0.5);
+      border: 2px solid var(--neon-magenta);
+    }
+    
+    .throttle-slider::-moz-range-thumb {
+      width: 30px;
+      height: 40px;
+      background: linear-gradient(180deg, #fff 0%, #ccc 100%);
+      border-radius: 5px;
+      cursor: pointer;
+      box-shadow: 
+        0 0 10px var(--neon-magenta),
+        0 4px 8px rgba(0,0,0,0.5);
+      border: 2px solid var(--neon-magenta);
+    }
+    
+    /* Gas pedal button */
+    .gas-hold {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+    
+    .pedal-btn {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 4px solid var(--neon-cyan);
+      background: radial-gradient(circle at 30% 30%, 
+        rgba(0, 255, 242, 0.3) 0%,
+        rgba(0, 0, 0, 0.8) 100%
+      );
+      color: var(--neon-cyan);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.1s ease;
+      box-shadow: 
+        0 0 20px rgba(0, 255, 242, 0.4),
+        inset 0 0 30px rgba(0, 255, 242, 0.1);
+    }
+    
+    .pedal-btn:active,
+    .pedal-btn.pressed {
+      background: radial-gradient(circle at 30% 30%, 
+        rgba(0, 255, 242, 0.6) 0%,
+        rgba(0, 255, 242, 0.2) 100%
+      );
+      box-shadow: 
+        0 0 40px var(--neon-cyan),
+        inset 0 0 50px rgba(0, 255, 242, 0.3);
+      transform: scale(0.95);
+    }
+    
+    /* Control buttons */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    
+    .control-btn {
+      padding: 20px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: white;
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    
+    .control-btn.brake {
+      border-color: var(--neon-orange);
+      text-shadow: 0 0 10px var(--neon-orange);
+    }
+    
+    .control-btn.brake:active,
+    .control-btn.brake.pressed {
+      background: rgba(255, 107, 53, 0.4);
+      box-shadow: 0 0 30px var(--neon-orange);
+    }
+    
+    .control-btn.left {
+      border-color: var(--neon-magenta);
+      text-shadow: 0 0 10px var(--neon-magenta);
+    }
+    
+    .control-btn.left:active,
+    .control-btn.left.pressed {
+      background: rgba(255, 0, 255, 0.4);
+      box-shadow: 0 0 30px var(--neon-magenta);
+    }
+    
+    .control-btn.right {
+      border-color: var(--neon-magenta);
+      text-shadow: 0 0 10px var(--neon-magenta);
+    }
+    
+    .control-btn.right:active,
+    .control-btn.right.pressed {
+      background: rgba(255, 0, 255, 0.4);
+      box-shadow: 0 0 30px var(--neon-magenta);
+    }
+    
+    /* Special effects buttons */
+    .effects-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+    
+    .effect-btn {
+      padding: 15px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--neon-yellow);
+      background: rgba(255, 230, 109, 0.1);
+      border: 1px solid var(--neon-yellow);
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    
+    .effect-btn:hover {
+      background: rgba(255, 230, 109, 0.2);
+    }
+    
+    .effect-btn:active {
+      background: rgba(255, 230, 109, 0.4);
+      box-shadow: 0 0 20px var(--neon-yellow);
+    }
+    
+    /* Gear display */
+    .gear-section {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 30px;
+      margin-top: 10px;
+    }
+    
+    .gear-display {
+      width: 80px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.8);
+      border: 3px solid var(--neon-cyan);
+      border-radius: 10px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--neon-cyan);
+      text-shadow: 0 0 20px var(--neon-cyan);
+      box-shadow: 
+        0 0 15px rgba(0, 255, 242, 0.3),
+        inset 0 0 20px rgba(0, 255, 242, 0.1);
+    }
+    
+    .gear-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .gear-btn {
+      padding: 10px 25px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      color: var(--neon-cyan);
+      background: transparent;
+      border: 2px solid var(--neon-cyan);
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    
+    .gear-btn:hover {
+      background: rgba(0, 255, 242, 0.2);
+    }
+    
+    .gear-btn:active {
+      background: rgba(0, 255, 242, 0.4);
+    }
+    
+    /* RPM / Speed meters */
+    .meters {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      margin-top: 20px;
+    }
+    
+    .meter {
+      text-align: center;
+    }
+    
+    .meter-label {
+      font-size: 0.9rem;
+      color: var(--neon-yellow);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 10px;
+    }
+    
+    .meter-bar {
+      height: 20px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 2px solid var(--grid-purple);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .meter-fill {
+      height: 100%;
+      background: linear-gradient(90deg, 
+        var(--neon-cyan) 0%,
+        var(--neon-yellow) 60%,
+        var(--neon-orange) 80%,
+        var(--neon-magenta) 100%
+      );
+      transition: width 0.1s ease;
+      box-shadow: 0 0 10px currentColor;
+    }
+    
+    .meter-value {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.8rem;
+      color: white;
+      text-shadow: 0 0 5px black;
+    }
+    
+    /* Status */
+    .status {
+      text-align: center;
+      padding: 10px;
+      font-size: 0.9rem;
+      color: var(--neon-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0.7;
+    }
+    
+    .status.ready {
+      color: var(--neon-yellow);
+      opacity: 1;
+    }
+    
+    /* Keyboard hints */
+    .hints {
+      margin-top: 30px;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+    
+    .hints-title {
+      font-size: 0.9rem;
+      color: var(--grid-purple);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 15px;
+    }
+    
+    .hints-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      font-size: 0.85rem;
+      color: rgba(255, 255, 255, 0.7);
+    }
+    
+    .hint kbd {
+      display: inline-block;
+      padding: 3px 8px;
+      background: rgba(139, 92, 246, 0.3);
+      border: 1px solid var(--grid-purple);
+      border-radius: 4px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="sun"></div>
+  <div class="grid-floor"></div>
+  
+  <div class="container">
+    <div class="title">
+      <h1>OUTRUN</h1>
+      <p>Audio Engine Demo</p>
+    </div>
+    
+    <div class="panel">
+      <button id="startBtn" class="start-btn">▶ START ENGINE</button>
+      <div id="status" class="status">Click to initialize audio</div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-title">Throttle Control</div>
+      <div class="throttle-section">
+        <div class="slider-container">
+          <div class="slider-label">Throttle Position</div>
+          <input type="range" id="throttleSlider" class="throttle-slider" min="0" max="100" value="0">
+        </div>
+        <div class="gas-hold">
+          <div class="slider-label">Hold Gas</div>
+          <button id="gasBtn" class="pedal-btn">HOLD<br>GAS</button>
+        </div>
+      </div>
+      
+      <div class="gear-section">
+        <div class="gear-buttons">
+          <button id="gearUp" class="gear-btn">▲ UP</button>
+          <button id="gearDown" class="gear-btn">▼ DOWN</button>
+        </div>
+        <div class="gear-display" id="gearDisplay">1</div>
+      </div>
+      
+      <div class="meters">
+        <div class="meter">
+          <div class="meter-label">RPM</div>
+          <div class="meter-bar">
+            <div class="meter-fill" id="rpmFill" style="width: 10%"></div>
+            <span class="meter-value" id="rpmValue">800</span>
+          </div>
+        </div>
+        <div class="meter">
+          <div class="meter-label">Speed</div>
+          <div class="meter-bar">
+            <div class="meter-fill" id="speedFill" style="width: 0%"></div>
+            <span class="meter-value" id="speedValue">0 km/h</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-title">Driving Controls</div>
+      <div class="controls-grid">
+        <button id="leftBtn" class="control-btn left">◄ LEFT</button>
+        <button id="brakeBtn" class="control-btn brake">BRAKE</button>
+        <button id="rightBtn" class="control-btn right">RIGHT ►</button>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-title">Special Effects</div>
+      <div class="effects-grid">
+        <button id="backfireBtn" class="effect-btn">💥 Backfire</button>
+        <button id="shiftBtn" class="effect-btn">⚙️ Gear Shift</button>
+        <button id="crashBtn" class="effect-btn">💥 Crash</button>
+      </div>
+    </div>
+    
+    <div class="hints">
+      <div class="hints-title">Keyboard Controls</div>
+      <div class="hints-grid">
+        <div class="hint"><kbd>W</kbd> / <kbd>↑</kbd> Throttle</div>
+        <div class="hint"><kbd>S</kbd> / <kbd>↓</kbd> Brake</div>
+        <div class="hint"><kbd>A</kbd> / <kbd>←</kbd> Turn Left</div>
+        <div class="hint"><kbd>D</kbd> / <kbd>→</kbd> Turn Right</div>
+        <div class="hint"><kbd>Q</kbd> Gear Down</div>
+        <div class="hint"><kbd>E</kbd> Gear Up</div>
+        <div class="hint"><kbd>B</kbd> Backfire</div>
+        <div class="hint"><kbd>Space</kbd> Crash</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================
+    // OUTRUN AUDIO ENGINE - Web Audio API Synthesizer
+    // ============================================
+    
+    class OutrunAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.nodes = {};
+        this.isInitialized = false;
+        this.currentRPM = 800;
+        this.targetRPM = 800;
+        this.animationFrame = null;
+        
+        // State
+        this.throttle = 0;
+        this.brake = false;
+        this.turning = 0;
+        this.speed = 0;
+        this.gear = 1;
+      }
+      
+      async init() {
+        if (this.isInitialized) return;
+        
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Master output with compression
+        const masterGain = this.ctx.createGain();
+        masterGain.gain.value = 0.7;
+        
+        const compressor = this.ctx.createDynamicsCompressor();
+        compressor.threshold.value = -24;
+        compressor.knee.value = 30;
+        compressor.ratio.value = 12;
+        compressor.attack.value = 0.003;
+        compressor.release.value = 0.25;
+        
+        masterGain.connect(compressor);
+        compressor.connect(this.ctx.destination);
+        
+        // ========== ENGINE SYNTHESIS ==========
+        // Primary engine tone (low rumble)
+        const engineOsc1 = this.ctx.createOscillator();
+        engineOsc1.type = 'sawtooth';
+        engineOsc1.frequency.value = 55;
+        
+        // Secondary harmonic (whine)
+        const engineOsc2 = this.ctx.createOscillator();
+        engineOsc2.type = 'square';
+        engineOsc2.frequency.value = 110;
+        
+        // High frequency component (arcade character)
+        const engineOsc3 = this.ctx.createOscillator();
+        engineOsc3.type = 'triangle';
+        engineOsc3.frequency.value = 220;
+        
+        // Pulse modulation for that classic sound
+        const engineOsc4 = this.ctx.createOscillator();
+        engineOsc4.type = 'square';
+        engineOsc4.frequency.value = 30;
+        
+        // Engine gains
+        const engineGain1 = this.ctx.createGain();
+        const engineGain2 = this.ctx.createGain();
+        const engineGain3 = this.ctx.createGain();
+        const engineGain4 = this.ctx.createGain();
+        engineGain1.gain.value = 0.25;
+        engineGain2.gain.value = 0.12;
+        engineGain3.gain.value = 0.06;
+        engineGain4.gain.value = 0.08;
+        
+        // Engine filter
+        const engineFilter = this.ctx.createBiquadFilter();
+        engineFilter.type = 'lowpass';
+        engineFilter.frequency.value = 800;
+        engineFilter.Q.value = 2;
+        
+        // Engine master gain
+        const engineMaster = this.ctx.createGain();
+        engineMaster.gain.value = 0.4;
+        
+        // Connect engine chain
+        engineOsc1.connect(engineGain1);
+        engineOsc2.connect(engineGain2);
+        engineOsc3.connect(engineGain3);
+        engineOsc4.connect(engineGain4);
+        engineGain1.connect(engineFilter);
+        engineGain2.connect(engineFilter);
+        engineGain3.connect(engineFilter);
+        engineGain4.connect(engineFilter);
+        engineFilter.connect(engineMaster);
+        engineMaster.connect(masterGain);
+        
+        engineOsc1.start();
+        engineOsc2.start();
+        engineOsc3.start();
+        engineOsc4.start();
+        
+        // ========== EXHAUST CRACKLE ==========
+        const exhaustBuffer = this.createNoiseBuffer(2, 'crackle');
+        const exhaustNoise = this.ctx.createBufferSource();
+        exhaustNoise.buffer = exhaustBuffer;
+        exhaustNoise.loop = true;
+        
+        const exhaustFilter = this.ctx.createBiquadFilter();
+        exhaustFilter.type = 'bandpass';
+        exhaustFilter.frequency.value = 200;
+        exhaustFilter.Q.value = 1;
+        
+        const exhaustGain = this.ctx.createGain();
+        exhaustGain.gain.value = 0;
+        
+        exhaustNoise.connect(exhaustFilter);
+        exhaustFilter.connect(exhaustGain);
+        exhaustGain.connect(masterGain);
+        exhaustNoise.start();
+        
+        // ========== TIRE SCREECH (oscillator-based) ==========
+        // Primary screech tone
+        const tireOsc1 = this.ctx.createOscillator();
+        tireOsc1.type = 'sawtooth';
+        tireOsc1.frequency.value = 900;
+        
+        // Secondary harmonic for richness
+        const tireOsc2 = this.ctx.createOscillator();
+        tireOsc2.type = 'square';
+        tireOsc2.frequency.value = 1350;
+        
+        // High frequency squeal
+        const tireOsc3 = this.ctx.createOscillator();
+        tireOsc3.type = 'sine';
+        tireOsc3.frequency.value = 1800;
+        
+        // LFO for frequency wobble (makes it sound like real tire squeal)
+        const tireLFO = this.ctx.createOscillator();
+        tireLFO.type = 'sine';
+        tireLFO.frequency.value = 15;
+        
+        const tireLFOGain = this.ctx.createGain();
+        tireLFOGain.gain.value = 50; // Wobble depth in Hz
+        
+        tireLFO.connect(tireLFOGain);
+        tireLFOGain.connect(tireOsc1.frequency);
+        tireLFOGain.connect(tireOsc2.frequency);
+        
+        // Individual gains for mixing
+        const tireOscGain1 = this.ctx.createGain();
+        const tireOscGain2 = this.ctx.createGain();
+        const tireOscGain3 = this.ctx.createGain();
+        tireOscGain1.gain.value = 0.4;
+        tireOscGain2.gain.value = 0.25;
+        tireOscGain3.gain.value = 0.35;
+        
+        // Add some noise texture
+        const tireNoiseBuffer = this.createNoiseBuffer(2, 'white');
+        const tireNoise = this.ctx.createBufferSource();
+        tireNoise.buffer = tireNoiseBuffer;
+        tireNoise.loop = true;
+        
+        const tireNoiseFilter = this.ctx.createBiquadFilter();
+        tireNoiseFilter.type = 'bandpass';
+        tireNoiseFilter.frequency.value = 3000;
+        tireNoiseFilter.Q.value = 2;
+        
+        const tireNoiseGain = this.ctx.createGain();
+        tireNoiseGain.gain.value = 0.15;
+        
+        // Master tire filter and gain
+        const tireFilter = this.ctx.createBiquadFilter();
+        tireFilter.type = 'bandpass';
+        tireFilter.frequency.value = 1200;
+        tireFilter.Q.value = 3;
+        
+        const tireGain = this.ctx.createGain();
+        tireGain.gain.value = 0;
+        
+        // Connect oscillators
+        tireOsc1.connect(tireOscGain1);
+        tireOsc2.connect(tireOscGain2);
+        tireOsc3.connect(tireOscGain3);
+        tireOscGain1.connect(tireFilter);
+        tireOscGain2.connect(tireFilter);
+        tireOscGain3.connect(tireFilter);
+        
+        // Connect noise
+        tireNoise.connect(tireNoiseFilter);
+        tireNoiseFilter.connect(tireNoiseGain);
+        tireNoiseGain.connect(tireFilter);
+        
+        tireFilter.connect(tireGain);
+        tireGain.connect(masterGain);
+        
+        tireOsc1.start();
+        tireOsc2.start();
+        tireOsc3.start();
+        tireLFO.start();
+        tireNoise.start();
+        
+        // ========== BRAKE SQUEAL ==========
+        const brakeOsc = this.ctx.createOscillator();
+        brakeOsc.type = 'sine';
+        brakeOsc.frequency.value = 3500;
+        
+        const brakeOsc2 = this.ctx.createOscillator();
+        brakeOsc2.type = 'sine';
+        brakeOsc2.frequency.value = 4200;
+        
+        const brakeGain = this.ctx.createGain();
+        brakeGain.gain.value = 0;
+        
+        const brakeFilter = this.ctx.createBiquadFilter();
+        brakeFilter.type = 'bandpass';
+        brakeFilter.frequency.value = 3800;
+        brakeFilter.Q.value = 10;
+        
+        brakeOsc.connect(brakeFilter);
+        brakeOsc2.connect(brakeFilter);
+        brakeFilter.connect(brakeGain);
+        brakeGain.connect(masterGain);
+        brakeOsc.start();
+        brakeOsc2.start();
+        
+        // ========== WIND NOISE ==========
+        const windBuffer = this.createNoiseBuffer(2, 'pink');
+        const windNoise = this.ctx.createBufferSource();
+        windNoise.buffer = windBuffer;
+        windNoise.loop = true;
+        
+        const windFilter = this.ctx.createBiquadFilter();
+        windFilter.type = 'lowpass';
+        windFilter.frequency.value = 400;
+        windFilter.Q.value = 0.5;
+        
+        const windGain = this.ctx.createGain();
+        windGain.gain.value = 0;
+        
+        windNoise.connect(windFilter);
+        windFilter.connect(windGain);
+        windGain.connect(masterGain);
+        windNoise.start();
+        
+        // Store references
+        this.nodes = {
+          masterGain,
+          engineOsc1, engineOsc2, engineOsc3, engineOsc4,
+          engineGain1, engineGain2, engineGain3, engineGain4,
+          engineFilter, engineMaster,
+          exhaustFilter, exhaustGain,
+          tireOsc1, tireOsc2, tireOsc3, tireLFO, tireLFOGain,
+          tireFilter, tireGain,
+          brakeOsc, brakeOsc2, brakeGain, brakeFilter,
+          windFilter, windGain
+        };
+        
+        this.isInitialized = true;
+        this.startUpdateLoop();
+      }
+      
+      createNoiseBuffer(duration, type = 'white') {
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+          if (type === 'crackle') {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(Math.random(), 3);
+          } else if (type === 'pink') {
+            // Simple pink noise approximation
+            data[i] = (Math.random() * 2 - 1) * 0.5 + (data[Math.max(0, i-1)] || 0) * 0.5;
+          } else {
+            data[i] = Math.random() * 2 - 1;
+          }
+        }
+        return buffer;
+      }
+      
+      startUpdateLoop() {
+        const update = () => {
+          if (!this.isInitialized) return;
+          
+          // Smooth RPM interpolation
+          const gearMultipliers = [1, 0.85, 0.7, 0.6, 0.5];
+          const gearMult = gearMultipliers[Math.min(this.gear - 1, 4)];
+          
+          const minRPM = 800;
+          const maxRPM = 8000;
+          this.targetRPM = minRPM + (this.throttle * (maxRPM - minRPM) * gearMult);
+          
+          // Apply brake effect on RPM
+          if (this.brake) {
+            this.targetRPM = Math.max(minRPM, this.targetRPM * 0.7);
+          }
+          
+          const rpmDiff = this.targetRPM - this.currentRPM;
+          const rpmSpeed = this.throttle > 0.1 ? 0.08 : 0.04;
+          this.currentRPM += rpmDiff * rpmSpeed;
+          
+          const rpm = this.currentRPM;
+          const rpmNormalized = (rpm - minRPM) / (maxRPM - minRPM);
+          
+          // Update engine frequencies
+          const baseFreq = 30 + (rpm / 100);
+          this.nodes.engineOsc1.frequency.value = baseFreq;
+          this.nodes.engineOsc2.frequency.value = baseFreq * 2;
+          this.nodes.engineOsc3.frequency.value = baseFreq * 4;
+          this.nodes.engineOsc4.frequency.value = baseFreq * 0.5;
+          
+          // Engine filter opens at higher RPM
+          this.nodes.engineFilter.frequency.value = 400 + (rpmNormalized * 3500);
+          
+          // Engine volume
+          const engineVol = 0.3 + (this.throttle * 0.5);
+          this.nodes.engineMaster.gain.value = engineVol;
+          
+          // Harmonic balance
+          this.nodes.engineGain1.gain.value = 0.25 - (rpmNormalized * 0.08);
+          this.nodes.engineGain2.gain.value = 0.12 + (rpmNormalized * 0.1);
+          this.nodes.engineGain3.gain.value = 0.06 + (rpmNormalized * 0.1);
+          this.nodes.engineGain4.gain.value = 0.08 * (1 - rpmNormalized * 0.5);
+          
+          // Exhaust crackle on deceleration
+          const decel = this.targetRPM < this.currentRPM - 500;
+          const exhaustVol = decel ? 0.12 * (1 - this.throttle) : 0;
+          this.nodes.exhaustGain.gain.value = exhaustVol;
+          this.nodes.exhaustFilter.frequency.value = 150 + (rpm / 20);
+          
+          // Speed simulation
+          if (this.throttle > 0.1 && !this.brake) {
+            this.speed = Math.min(1, this.speed + 0.005 * this.throttle);
+          } else if (this.brake) {
+            this.speed = Math.max(0, this.speed - 0.02);
+          } else {
+            this.speed = Math.max(0, this.speed - 0.002);
+          }
+          
+          // Wind noise
+          this.nodes.windGain.gain.value = this.speed * 0.12;
+          this.nodes.windFilter.frequency.value = 200 + (this.speed * 1000);
+          
+          // Tire screech when turning
+          const turnIntensity = Math.abs(this.turning);
+          
+          // Calculate screech volume - audible even at lower speeds when turning hard
+          const speedFactor = Math.max(0.3, this.speed); // Minimum speed factor for sound
+          const skidVolume = turnIntensity * speedFactor * 0.45;
+          this.nodes.tireGain.gain.value = skidVolume;
+          
+          // Pitch increases with speed and turn intensity for that arcade feel
+          const tireBaseFreq = 800 + (this.speed * 400);
+          this.nodes.tireOsc1.frequency.value = tireBaseFreq + (turnIntensity * 200);
+          this.nodes.tireOsc2.frequency.value = tireBaseFreq * 1.5 + (turnIntensity * 150);
+          this.nodes.tireOsc3.frequency.value = tireBaseFreq * 2 + (turnIntensity * 100);
+          
+          // LFO wobble gets faster with harder turns
+          this.nodes.tireLFO.frequency.value = 10 + (turnIntensity * 20);
+          this.nodes.tireLFOGain.gain.value = 30 + (turnIntensity * 60);
+          
+          // Filter opens up with intensity
+          this.nodes.tireFilter.frequency.value = 1000 + (turnIntensity * 1500) + (this.speed * 500);
+          this.nodes.tireFilter.Q.value = 2 + (turnIntensity * 4);
+          
+          // Brake squeal
+          if (this.brake && this.speed > 0.2) {
+            const brakeVol = 0.06 * this.speed;
+            this.nodes.brakeGain.gain.value = brakeVol;
+            this.nodes.brakeOsc.frequency.value = 3500 + (Math.random() * 300);
+            this.nodes.brakeOsc2.frequency.value = 4200 + (Math.random() * 300);
+          } else {
+            this.nodes.brakeGain.gain.value *= 0.9;
+          }
+          
+          // Update UI
+          this.updateUI();
+          
+          this.animationFrame = requestAnimationFrame(update);
+        };
+        
+        update();
+      }
+      
+      updateUI() {
+        const rpmPercent = ((this.currentRPM - 800) / 7200) * 100;
+        document.getElementById('rpmFill').style.width = rpmPercent + '%';
+        document.getElementById('rpmValue').textContent = Math.round(this.currentRPM);
+        
+        const speedKmh = Math.round(this.speed * 320);
+        document.getElementById('speedFill').style.width = (this.speed * 100) + '%';
+        document.getElementById('speedValue').textContent = speedKmh + ' km/h';
+      }
+      
+      setThrottle(value) {
+        this.throttle = Math.max(0, Math.min(1, value));
+      }
+      
+      setBrake(active) {
+        this.brake = active;
+      }
+      
+      setTurning(value) {
+        this.turning = Math.max(-1, Math.min(1, value));
+      }
+      
+      setGear(gear) {
+        const newGear = Math.max(1, Math.min(5, gear));
+        if (newGear !== this.gear) {
+          this.gear = newGear;
+          this.triggerGearShift();
+        }
+        document.getElementById('gearDisplay').textContent = this.gear;
+      }
+      
+      gearUp() {
+        this.setGear(this.gear + 1);
+      }
+      
+      gearDown() {
+        this.setGear(this.gear - 1);
+      }
+      
+      triggerBackfire() {
+        if (!this.isInitialized) return;
+        
+        const now = this.ctx.currentTime;
+        const bufferSize = this.ctx.sampleRate * 0.15;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+          const env = Math.exp(-i / (bufferSize * 0.08));
+          data[i] = (Math.random() * 2 - 1) * env;
+        }
+        
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 600;
+        
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0.6;
+        
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.nodes.masterGain);
+        source.start(now);
+      }
+      
+      triggerGearShift() {
+        if (!this.isInitialized) return;
+        
+        const now = this.ctx.currentTime;
+        
+        // Brief engine cut
+        this.nodes.engineMaster.gain.setValueAtTime(0.15, now);
+        this.nodes.engineMaster.gain.setTargetAtTime(0.4, now + 0.06, 0.04);
+        
+        // Mechanical click
+        const clickOsc = this.ctx.createOscillator();
+        clickOsc.type = 'square';
+        clickOsc.frequency.value = 120;
+        
+        const clickGain = this.ctx.createGain();
+        clickGain.gain.setValueAtTime(0.25, now);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        
+        clickOsc.connect(clickGain);
+        clickGain.connect(this.nodes.masterGain);
+        clickOsc.start(now);
+        clickOsc.stop(now + 0.06);
+      }
+      
+      triggerCrash() {
+        if (!this.isInitialized) return;
+        
+        const now = this.ctx.currentTime;
+        const bufferSize = this.ctx.sampleRate * 1;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+          const env = Math.exp(-i / (bufferSize * 0.15));
+          data[i] = (Math.random() * 2 - 1) * env;
+        }
+        
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 600;
+        filter.Q.value = 1.5;
+        
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0.8;
+        
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.nodes.masterGain);
+        source.start(now);
+        
+        // Cut engine temporarily
+        this.nodes.engineMaster.gain.setValueAtTime(0.1, now);
+        this.nodes.engineMaster.gain.setTargetAtTime(0.4, now + 0.5, 0.2);
+        
+        // Reset speed
+        this.speed = 0;
+      }
+      
+      stop() {
+        if (this.animationFrame) {
+          cancelAnimationFrame(this.animationFrame);
+        }
+        if (this.ctx) {
+          this.ctx.suspend();
+        }
+      }
+    }
+    
+    // ============================================
+    // UI CONTROLLER
+    // ============================================
+    
+    const engine = new OutrunAudioEngine();
+    let isStarted = false;
+    
+    // Elements
+    const startBtn = document.getElementById('startBtn');
+    const status = document.getElementById('status');
+    const throttleSlider = document.getElementById('throttleSlider');
+    const gasBtn = document.getElementById('gasBtn');
+    const brakeBtn = document.getElementById('brakeBtn');
+    const leftBtn = document.getElementById('leftBtn');
+    const rightBtn = document.getElementById('rightBtn');
+    const gearUp = document.getElementById('gearUp');
+    const gearDown = document.getElementById('gearDown');
+    const backfireBtn = document.getElementById('backfireBtn');
+    const shiftBtn = document.getElementById('shiftBtn');
+    const crashBtn = document.getElementById('crashBtn');
+    
+    // State tracking
+    let gasHeld = false;
+    let keysPressed = {};
+    
+    // Start button
+    startBtn.addEventListener('click', async () => {
+      if (!isStarted) {
+        await engine.init();
+        isStarted = true;
+        startBtn.textContent = '■ STOP ENGINE';
+        startBtn.classList.add('active');
+        status.textContent = 'Engine running - ready to race!';
+        status.classList.add('ready');
+      } else {
+        engine.stop();
+        isStarted = false;
+        startBtn.textContent = '▶ START ENGINE';
+        startBtn.classList.remove('active');
+        status.textContent = 'Engine stopped';
+        status.classList.remove('ready');
+      }
+    });
+    
+    // Throttle slider
+    throttleSlider.addEventListener('input', (e) => {
+      if (!gasHeld) {
+        engine.setThrottle(e.target.value / 100);
+      }
+    });
+    
+    // Gas hold button
+    gasBtn.addEventListener('mousedown', () => {
+      gasHeld = true;
+      gasBtn.classList.add('pressed');
+      engine.setThrottle(1);
+      throttleSlider.value = 100;
+    });
+    
+    gasBtn.addEventListener('mouseup', () => {
+      gasHeld = false;
+      gasBtn.classList.remove('pressed');
+      engine.setThrottle(0);
+      throttleSlider.value = 0;
+    });
+    
+    gasBtn.addEventListener('mouseleave', () => {
+      if (gasHeld) {
+        gasHeld = false;
+        gasBtn.classList.remove('pressed');
+        engine.setThrottle(0);
+        throttleSlider.value = 0;
+      }
+    });
+    
+    // Touch support for gas button
+    gasBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      gasHeld = true;
+      gasBtn.classList.add('pressed');
+      engine.setThrottle(1);
+      throttleSlider.value = 100;
+    });
+    
+    gasBtn.addEventListener('touchend', () => {
+      gasHeld = false;
+      gasBtn.classList.remove('pressed');
+      engine.setThrottle(0);
+      throttleSlider.value = 0;
+    });
+    
+    // Brake button
+    const handleBrakeStart = () => {
+      brakeBtn.classList.add('pressed');
+      engine.setBrake(true);
+    };
+    
+    const handleBrakeEnd = () => {
+      brakeBtn.classList.remove('pressed');
+      engine.setBrake(false);
+    };
+    
+    brakeBtn.addEventListener('mousedown', handleBrakeStart);
+    brakeBtn.addEventListener('mouseup', handleBrakeEnd);
+    brakeBtn.addEventListener('mouseleave', handleBrakeEnd);
+    brakeBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleBrakeStart(); });
+    brakeBtn.addEventListener('touchend', handleBrakeEnd);
+    
+    // Turn buttons
+    const handleLeftStart = () => {
+      leftBtn.classList.add('pressed');
+      engine.setTurning(-1);
+    };
+    
+    const handleLeftEnd = () => {
+      leftBtn.classList.remove('pressed');
+      if (!keysPressed['ArrowRight'] && !keysPressed['KeyD']) {
+        engine.setTurning(0);
+      }
+    };
+    
+    const handleRightStart = () => {
+      rightBtn.classList.add('pressed');
+      engine.setTurning(1);
+    };
+    
+    const handleRightEnd = () => {
+      rightBtn.classList.remove('pressed');
+      if (!keysPressed['ArrowLeft'] && !keysPressed['KeyA']) {
+        engine.setTurning(0);
+      }
+    };
+    
+    leftBtn.addEventListener('mousedown', handleLeftStart);
+    leftBtn.addEventListener('mouseup', handleLeftEnd);
+    leftBtn.addEventListener('mouseleave', handleLeftEnd);
+    leftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleLeftStart(); });
+    leftBtn.addEventListener('touchend', handleLeftEnd);
+    
+    rightBtn.addEventListener('mousedown', handleRightStart);
+    rightBtn.addEventListener('mouseup', handleRightEnd);
+    rightBtn.addEventListener('mouseleave', handleRightEnd);
+    rightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); handleRightStart(); });
+    rightBtn.addEventListener('touchend', handleRightEnd);
+    
+    // Gear buttons
+    gearUp.addEventListener('click', () => engine.gearUp());
+    gearDown.addEventListener('click', () => engine.gearDown());
+    
+    // Effect buttons
+    backfireBtn.addEventListener('click', () => engine.triggerBackfire());
+    shiftBtn.addEventListener('click', () => engine.triggerGearShift());
+    crashBtn.addEventListener('click', () => engine.triggerCrash());
+    
+    // Keyboard controls
+    document.addEventListener('keydown', (e) => {
+      if (!isStarted) return;
+      if (keysPressed[e.code]) return;
+      keysPressed[e.code] = true;
+      
+      switch (e.code) {
+        case 'KeyW':
+        case 'ArrowUp':
+          gasHeld = true;
+          gasBtn.classList.add('pressed');
+          engine.setThrottle(1);
+          throttleSlider.value = 100;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          brakeBtn.classList.add('pressed');
+          engine.setBrake(true);
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          leftBtn.classList.add('pressed');
+          engine.setTurning(-1);
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          rightBtn.classList.add('pressed');
+          engine.setTurning(1);
+          break;
+        case 'KeyQ':
+          engine.gearDown();
+          break;
+        case 'KeyE':
+          engine.gearUp();
+          break;
+        case 'KeyB':
+          engine.triggerBackfire();
+          break;
+        case 'Space':
+          e.preventDefault();
+          engine.triggerCrash();
+          break;
+      }
+    });
+    
+    document.addEventListener('keyup', (e) => {
+      delete keysPressed[e.code];
+      
+      switch (e.code) {
+        case 'KeyW':
+        case 'ArrowUp':
+          if (!keysPressed['KeyW'] && !keysPressed['ArrowUp']) {
+            gasHeld = false;
+            gasBtn.classList.remove('pressed');
+            engine.setThrottle(0);
+            throttleSlider.value = 0;
+          }
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          if (!keysPressed['KeyS'] && !keysPressed['ArrowDown']) {
+            brakeBtn.classList.remove('pressed');
+            engine.setBrake(false);
+          }
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          leftBtn.classList.remove('pressed');
+          if (!keysPressed['KeyD'] && !keysPressed['ArrowRight']) {
+            engine.setTurning(0);
+          } else {
+            engine.setTurning(1);
+          }
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          rightBtn.classList.remove('pressed');
+          if (!keysPressed['KeyA'] && !keysPressed['ArrowLeft']) {
+            engine.setTurning(0);
+          } else {
+            engine.setTurning(-1);
+          }
+          break;
+      }
+    });
+  </script>
+</body>
+</html>
